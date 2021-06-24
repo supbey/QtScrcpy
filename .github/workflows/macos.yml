@@ -1,0 +1,79 @@
+name: MacOS
+on: 
+  push:
+    paths:
+      - 'QtScrcpy/**'
+      - '!QtScrcpy/res/**'
+      - '.github/workflows/macos.yml'
+  pull_request:
+    paths:
+      - 'QtScrcpy/**'
+      - '!QtScrcpy/res/**'
+      - '.github/workflows/macos.yml'
+jobs:
+  build:
+    name: Build
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        qt-ver: [5.15.1]
+        qt-arch-install: [clang_64]
+        clang-arch: [x64]
+    env:
+      target-name: QtScrcpy
+      qt-install-path: ${{ github.workspace }}/${{ matrix.qt-ver }}
+      plantform-des: mac
+    steps:
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v1
+        with:
+          path: ${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}
+          key: ${{ runner.os }}/${{ matrix.qt-ver }}/${{ matrix.qt-arch-install }}
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v2.13.0
+        with:
+          version: ${{ matrix.qt-ver }}
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      # 编译
+      - name: Build MacOS
+        env:
+          ENV_QT_PATH: ${{ env.qt-install-path }}
+        run: |
+          python ci/generate-version.py
+          ci/mac/build_for_mac.sh release
+      # 获取ref最后一个/后的内容
+      - name: Get the version
+        shell: bash
+        id: get-version
+        # ${ GITHUB_REF/refs\/tags\// }是linux shell ${}的变量替换语法
+        run: echo ::set-output name=version::${GITHUB_REF##*/}
+      # 打包
+      - name: Package
+        id: package
+        env:
+          ENV_QT_PATH: ${{ env.qt-install-path }}
+          publish_name: ${{ env.target-name }}-${{ env.plantform-des }}-${{ matrix.clang-arch }}-${{ steps.get-version.outputs.version }}
+        run: |
+          ci/mac/publish_for_mac.sh ../build
+          ci/mac/package_for_mac.sh
+          mv ci/build/QtScrcpy.app ci/build/${{ env.publish_name }}.app
+          mv ci/build/QtScrcpy.dmg ci/build/${{ env.publish_name }}.dmg
+          echo "::set-output name=package-name::${{ env.publish_name }}"
+      - uses: actions/upload-artifact@v1
+        with:
+          name: ${{ steps.package.outputs.package-name }}.zip
+          path: ci/build/${{ steps.package.outputs.package-name }}.app
+      # Upload to release
+      - name: Upload Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ci/build/${{ steps.package.outputs.package-name }}.dmg
+          asset_name: ${{ steps.package.outputs.package-name }}.dmg
+          tag: ${{ github.ref }}
+          overwrite: true

@@ -1,0 +1,50 @@
+name: Ubuntu
+# Qt官方没有linux平台的x86包
+on: 
+  push:
+    paths:
+      - 'QtScrcpy/**'
+      - '!QtScrcpy/res/**'
+      - '.github/workflows/ubuntu.yml'
+  pull_request:
+    paths:
+      - 'QtScrcpy/**'
+      - '!QtScrcpy/res/**'
+      - '.github/workflows/ubuntu.yml'
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-16.04,ubuntu-18.04]
+        qt-ver: [5.15.1]
+        qt-arch-install: [gcc_64]
+        gcc-arch: [x64]
+    env:
+      target-name: QtScrcpy
+      qt-install-path: ${{ github.workspace }}/${{ matrix.qt-ver }}
+      plantform-des: ubuntu
+    steps:
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v1
+        with:
+          path: ${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}
+          key: ${{ runner.os }}/${{ matrix.qt-ver }}/${{ matrix.qt-arch-install }}
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v2.13.0
+        with:
+          version: ${{ matrix.qt-ver }}
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+      - name: Ubuntu install GL library
+        run: sudo apt-get install -y libglew-dev libglfw3-dev
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: Build Ubuntu
+        env:
+          ENV_QT_PATH: ${{ env.qt-install-path }}
+        run: |
+          python ci/generate-version.py
+          ci/linux/build_for_ubuntu.sh release

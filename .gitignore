@@ -1,0 +1,15 @@
+/output
+*.user
+/QtScrcpy/*.user
+/server/.gradle
+/server/.idea
+/server/build
+/server/gradle/wrapper/gradle-wrapper.jar
+/server/gradle/wrapper/gradle-wrapper.properties
+/server/gradlew
+/server/gradlew.bat
+/server/local.properties
+/build/
+build-*
+*.DS_Store
+userdata.ini
